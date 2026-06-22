@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="s3mo/s3mo.csproj" />
+  <Project Path="s3molib/s3molib.csproj" />
+</Solution>

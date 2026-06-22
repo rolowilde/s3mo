@@ -2,16 +2,14 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net6.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AllowUnsafeBlocks>False</AllowUnsafeBlocks>
-    <FileVersion></FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\s3molib\s3molib\s3molib.csproj" />
+    <ProjectReference Include="..\s3molib\s3molib.csproj" />
   </ItemGroup>
 
   <ItemGroup>
