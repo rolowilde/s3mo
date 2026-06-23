@@ -1,41 +1,31 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
+﻿namespace s3mo;
 
-namespace s3mo
+public partial class TextBoxForm : Form
 {
-    public partial class TextBoxForm : Form
+    readonly Predicate<string> _validate;
+
+    public TextBoxForm(string label, Predicate<string> textValidate)
     {
-        Predicate<string> _validate;
+        InitializeComponent();
 
-        public TextBoxForm(string label, Predicate<string> textValidate)
+        label1.Text = label;
+        _validate = textValidate;
+    }
+
+    private void okButton_Click(object sender, EventArgs e)
+    {
+        if (!_validate.Invoke(textBox.Text))
         {
-            InitializeComponent();
-
-            label1.Text = label;
-            _validate = textValidate;
+            return;
         }
 
-        private void okButton_Click(object sender, EventArgs e)
-        {
-            if (!_validate.Invoke(textBox.Text))
-                return;
+        DialogResult = DialogResult.OK;
+        Close();
+    }
 
-            DialogResult = DialogResult.OK;
-            this.Close();
-        }
-
-        private void cancelButton_Click(object sender, EventArgs e)
-        {
-            DialogResult = DialogResult.Cancel;
-            this.Close();
-        }
-
+    private void cancelButton_Click(object sender, EventArgs e)
+    {
+        DialogResult = DialogResult.Cancel;
+        Close();
     }
 }

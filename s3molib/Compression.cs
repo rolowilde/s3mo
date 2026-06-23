@@ -19,7 +19,6 @@
  ***************************************************************************/
 using System;
 using System.Collections.Generic;
-using System.Collections;
 using System.IO;
 
 namespace s3pi.Package
@@ -30,37 +29,78 @@ namespace s3pi.Package
     public static class Compression
     {
         //static bool checking = Settings.Settings.Checking;
-        static bool checking = true;
+        static readonly bool checking = true;
 
         public static byte[] UncompressStream(Stream stream, int filesize, int memsize)
         {
-            BinaryReader r = new BinaryReader(stream);
+            BinaryReader r = new(stream);
             long end = stream.Position + filesize;
 
             byte[] uncdata = new byte[memsize];
-            BinaryWriter bw = new BinaryWriter(new MemoryStream(uncdata));
+            BinaryWriter bw = new(new MemoryStream(uncdata));
 
             byte[] data = r.ReadBytes(2);
-            if (checking) if (data.Length != 2)
-                    throw new InvalidDataException("Hit unexpected end of file at " + stream.Position);
+            if (checking)
+            {
+                if (data.Length != 2)
+                {
+                    throw new InvalidDataException(
+                        "Hit unexpected end of file at " + stream.Position
+                    );
+                }
+            }
 
             int datalen = (((data[0] & 0x80) != 0) ? 4 : 3) * (((data[0] & 0x01) != 0) ? 2 : 1);
             data = r.ReadBytes(datalen);
-            if (checking) if (data.Length != datalen)
-                    throw new InvalidDataException("Hit unexpected end of file at " + stream.Position);
+            if (checking)
+            {
+                if (data.Length != datalen)
+                {
+                    throw new InvalidDataException(
+                        "Hit unexpected end of file at " + stream.Position
+                    );
+                }
+            }
 
             long realsize = 0;
-            for (int i = 0; i < data.Length; i++) realsize = (realsize << 8) + data[i];
+            for (int i = 0; i < data.Length; i++)
+            {
+                realsize = (realsize << 8) + data[i];
+            }
 
-            if (checking) if (realsize != memsize)
-                    throw new InvalidDataException(String.Format(
-                        "Resource data indicates size does not match index at 0x{0}.  Read 0x{1}.  Expected 0x{2}.",
-                        stream.Position.ToString("X8"), realsize.ToString("X8"), memsize.ToString("X8")));
+            if (checking)
+            {
+                if (realsize != memsize)
+                {
+                    throw new InvalidDataException(
+                        string.Format(
+                            "Resource data indicates size does not match index at 0x{0}.  Read 0x{1}.  Expected 0x{2}.",
+                            stream.Position.ToString("X8"),
+                            realsize.ToString("X8"),
+                            memsize.ToString("X8")
+                        )
+                    );
+                }
+            }
 
-            while (stream.Position < end) { Dechunk(stream, bw); }
+            while (stream.Position < end)
+            {
+                Dechunk(stream, bw);
+            }
 
-            if (checking) if (bw.BaseStream.Position != memsize)
-                    throw new InvalidDataException(String.Format("Read 0x{0:X8} bytes.  Expected 0x{1:X8}.", bw.BaseStream.Position, memsize));
+            if (checking)
+            {
+                if (bw.BaseStream.Position != memsize)
+                {
+                    throw new InvalidDataException(
+                        string.Format(
+                            "Read 0x{0:X8} bytes.  Expected 0x{1:X8}.",
+                            bw.BaseStream.Position,
+                            memsize
+                        )
+                    );
+                }
+            }
 
             bw.Close();
 
@@ -69,7 +109,7 @@ namespace s3pi.Package
 
         public static void Dechunk(Stream stream, BinaryWriter bw)
         {
-            BinaryReader r = new BinaryReader(stream);
+            BinaryReader r = new(stream);
             int copysize = 0;
             int copyoffset = 0;
             int datalen;
@@ -81,8 +121,16 @@ namespace s3pi.Package
             if (packing < 0x80) // 0.......; new data 3; copy data 10 (min 3); offset 1024
             {
                 data = r.ReadBytes(1);
-                if (checking) if (data.Length != 1)
-                        throw new InvalidDataException("Hit unexpected end of file at " + stream.Position);
+                if (checking)
+                {
+                    if (data.Length != 1)
+                    {
+                        throw new InvalidDataException(
+                            "Hit unexpected end of file at " + stream.Position
+                        );
+                    }
+                }
+
                 datalen = packing & 0x03;
                 copysize = ((packing >> 2) & 0x07) + 3;
                 copyoffset = (((packing << 3) & 0x300) | data[0]) + 1;
@@ -90,8 +138,16 @@ namespace s3pi.Package
             else if (packing < 0xC0) // 10......; new data 3; copy data 67 (min 4); offset 16384
             {
                 data = r.ReadBytes(2);
-                if (checking) if (data.Length != 2)
-                        throw new InvalidDataException("Hit unexpected end of file at " + stream.Position);
+                if (checking)
+                {
+                    if (data.Length != 2)
+                    {
+                        throw new InvalidDataException(
+                            "Hit unexpected end of file at " + stream.Position
+                        );
+                    }
+                }
+
                 datalen = (data[0] >> 6) & 0x03;
                 copysize = (packing & 0x3F) + 4;
                 copyoffset = (((data[0] << 8) & 0x3F00) | data[1]) + 1;
@@ -99,8 +155,16 @@ namespace s3pi.Package
             else if (packing < 0xE0) // 110.....; new data 3; copy data 1028 (min 5); offset 131072
             {
                 data = r.ReadBytes(3);
-                if (checking) if (data.Length != 3)
-                        throw new InvalidDataException("Hit unexpected end of file at " + stream.Position);
+                if (checking)
+                {
+                    if (data.Length != 3)
+                    {
+                        throw new InvalidDataException(
+                            "Hit unexpected end of file at " + stream.Position
+                        );
+                    }
+                }
+
                 datalen = packing & 0x03;
                 copysize = (((packing << 6) & 0x300) | data[2]) + 5;
                 copyoffset = (((packing << 12) & 0x10000) | data[0] << 8 | data[1]) + 1;
@@ -108,23 +172,53 @@ namespace s3pi.Package
             #endregion
             #region Uncompressed
             else if (packing < 0xFC) // 1110000 - 11101111; new data 4-128
+            {
                 datalen = (((packing & 0x1F) + 1) << 2);
+            }
             else // 111111..; new data 3
+            {
                 datalen = packing & 0x03;
+            }
             #endregion
 
             if (datalen > 0)
             {
                 data = r.ReadBytes(datalen);
-                if (checking) if (data.Length != datalen)
-                        throw new InvalidDataException("Hit unexpected end of file at " + stream.Position);
+                if (checking)
+                {
+                    if (data.Length != datalen)
+                    {
+                        throw new InvalidDataException(
+                            "Hit unexpected end of file at " + stream.Position
+                        );
+                    }
+                }
+
                 bw.Write(data);
             }
 
-            if (checking) if (copyoffset > bw.BaseStream.Position)
-                throw new InvalidDataException(String.Format("Invalid copy offset 0x{0:X8} at {1}.", copyoffset, stream.Position));
+            if (checking)
+            {
+                if (copyoffset > bw.BaseStream.Position)
+                {
+                    throw new InvalidDataException(
+                        string.Format(
+                            "Invalid copy offset 0x{0:X8} at {1}.",
+                            copyoffset,
+                            stream.Position
+                        )
+                    );
+                }
+            }
 
-            if (copysize < copyoffset && copyoffset > 8) CopyA(bw.BaseStream, copyoffset, copysize); else CopyB(bw.BaseStream, copyoffset, copysize);
+            if (copysize < copyoffset && copyoffset > 8)
+            {
+                CopyA(bw.BaseStream, copyoffset, copysize);
+            }
+            else
+            {
+                CopyB(bw.BaseStream, copyoffset, copysize);
+            }
         }
 
         static void CopyA(Stream s, int offset, int len)
@@ -136,7 +230,7 @@ namespace s3pi.Package
                 len -= b.Length;
 
                 s.Position -= offset;
-                s.Read(b, 0, b.Length);
+                s.ReadExactly(b);
 
                 s.Position = dst;
                 s.Write(b, 0, b.Length);
@@ -305,12 +399,12 @@ namespace s3pi.Package
 
         static int WriteChunk(BinaryWriter bw, byte[] data, int posn, int datalen, int copypos, int copysize)
         {
-            #region Assertions
+        #region Assertions
             if (checking) if (posn + datalen > data.Length)
                     throw new InvalidOperationException(
                         String.Format("At position 0x{0:X8}, requested uncompressed length 0x{1:X4} exceeds input data length 0x{2:X8}.",
                         posn, datalen, data.Length));
-            #endregion
+        #endregion
 
             byte packing = 0;
             byte[] parm = null;
@@ -318,9 +412,9 @@ namespace s3pi.Package
 
             if (copypos == -1)
             {
-                #region No compression
+        #region No compression
 
-                #region Assertions
+        #region Assertions
                 if (checking)
                 {
                     if (datalen > 112)
@@ -333,11 +427,11 @@ namespace s3pi.Package
                             String.Format("At position 0x{0:X8}, must pass zero copysize (got 0x{1:X4}) when copypos is -1.",
                             posn, copysize));
                 }
-                #endregion
+        #endregion
 
                 if (datalen > 3)
                 {
-                    #region Assertions
+        #region Assertions
                     if (checking) if ((datalen & 0x03) != 0)
                             throw new InvalidOperationException(
                                 String.Format("At position 0x{0:X8}, requested uncompressed length 0x{1:X4} not a multiple of 4.",
@@ -346,30 +440,30 @@ namespace s3pi.Package
                             throw new InvalidOperationException(
                                 String.Format("At position 0x{0:X8}, requested uncompressed length 0x{1:X4} greater than 0x70.",
                                 posn, datalen));
-                    #endregion
+        #endregion
 
                     packing = (byte)((datalen >> 2) - 1); //00000000 - 01110000 >> 00000000 - 00001111
                     packing |= 0xE0; // 0000aaaa >> 1110aaaa
                 }
                 else // Should only happen at end of file
                 {
-                    #region Assertions
+        #region Assertions
                     if (checking) if (data.Length - posn > 3)
                             throw new InvalidOperationException(
                                 String.Format("At position 0x{0:X8}, requested end of file with 0x{1:X4} bytes remaining: must be 3 or less.",
                                 posn, data.Length - posn));
-                    #endregion
+        #endregion
                     packing = (byte)datalen;//(uncsize & 0x03)
                     packing |= 0xFC;
                 }
-                #endregion
+        #endregion
             }
             else
             {
-                #region Compression
+        #region Compression
                 int copyoffset = posn + datalen - copypos - 1;
 
-                #region Assertions
+        #region Assertions
                 if (checking)
                 {
                     if (copypos > posn + datalen)
@@ -397,7 +491,7 @@ namespace s3pi.Package
                             String.Format("At position 0x{0:X8}, requested uncompressed length 0x{1:X4} greater than 3.",
                             posn, datalen));
                 }
-                #endregion
+        #endregion
 
                 if (copyoffset < 0x400 && copysize <= 0x0A)
                 {
@@ -441,7 +535,7 @@ namespace s3pi.Package
 
                     packing |= 0xC0;
                 }
-                #endregion
+        #endregion
             }
 
             bw.Write(packing);
@@ -453,9 +547,6 @@ namespace s3pi.Package
 #endif
     }
 }
-
-
-
 
 /*
  * The following code was provided by Tiger
@@ -470,14 +561,20 @@ namespace Tiger
             mTracker = CreateTracker(level, out mBruteForceLength);
         }
 
-        public DBPFCompression(int blockinterval, int lookupstart, int windowlength, int bucketdepth, int bruteforcelength)
+        public DBPFCompression(
+            int blockinterval,
+            int lookupstart,
+            int windowlength,
+            int bucketdepth,
+            int bruteforcelength
+        )
         {
             mTracker = CreateTracker(blockinterval, lookupstart, windowlength, bucketdepth);
             mBruteForceLength = bruteforcelength;
         }
 
-        private int mBruteForceLength;
-        private IMatchtracker mTracker;
+        private readonly int mBruteForceLength;
+        private readonly IMatchtracker mTracker;
 
         private byte[] mData;
 
@@ -488,14 +585,14 @@ namespace Tiger
 
         public static bool Compress(byte[] data, out byte[] compressed)
         {
-            DBPFCompression compressor = new DBPFCompression(5);
+            DBPFCompression compressor = new(5);
             compressed = compressor.Compress(data);
             return (compressed != null);
         }
 
         public static bool Compress(byte[] data, out byte[] compressed, int level)
         {
-            DBPFCompression compressor = new DBPFCompression(level);
+            DBPFCompression compressor = new(level);
             compressed = compressor.Compress(data);
             return (compressed != null);
         }
@@ -503,12 +600,14 @@ namespace Tiger
         public byte[] Compress(byte[] data)
         {
             bool endisvalid = false;
-            List<byte[]> compressedchunks = new List<byte[]>();
+            List<byte[]> compressedchunks = [];
             int compressedidx = 0;
             int compressedlen = 0;
 
-            if (data.Length < 16 || data.LongLength > UInt32.MaxValue)
+            if (data.Length < 16 || data.LongLength > uint.MaxValue)
+            {
                 return null;
+            }
 
             mData = data;
 
@@ -533,7 +632,9 @@ namespace Tiger
                     }
 
                     while (compressedidx > lastbytestored - 3)
+                    {
                         mTracker.Addvalue(data[lastbytestored++]);
+                    }
 
                     // Search ahead in blocks of 4 bytes for a match until one is found
                     // Record the best match if multiple are found
@@ -546,21 +647,27 @@ namespace Tiger
                         for (int loop = 0; loop < 4; loop++)
                         {
                             if (lastbytestored < data.Length)
+                            {
                                 mTracker.Addvalue(data[lastbytestored++]);
+                            }
+
                             FindSequence(lastbytestored - 4);
                         }
-                    }
-                    while (!mSequenceFound && lastbytestored + 4 <= data.Length);
+                    } while (!mSequenceFound && lastbytestored + 4 <= data.Length);
 
                     if (!mSequenceFound)
+                    {
                         mSequenceDest = mData.Length;
+                    }
 
                     // If the next match is more than four bytes away, put in codes to read uncompressed data
                     while (mSequenceDest - compressedidx >= 4)
                     {
                         int tocopy = (mSequenceDest - compressedidx) & ~3;
                         if (tocopy > 112)
+                        {
                             tocopy = 112;
+                        }
 
                         byte[] chunk = new byte[tocopy + 1];
                         chunk[0] = (byte)(0xE0 | ((tocopy >> 2) - 1));
@@ -578,20 +685,20 @@ namespace Tiger
                          *   Read 0-3
                          *   Copy 3-10
                          *   Offset 0-1023
-                         *   
+                         *
                          * 80-BF  10cccccc ppoooooo oooooooo
                          *   Read 0-3
                          *   Copy 4-67
                          *   Offset 0-16383
-                         *   
+                         *
                          * C0-DF  110cccpp oooooooo oooooooo cccccccc
                          *   Read 0-3
                          *   Copy 5-1028
                          *   Offset 0-131071
-                         *   
+                         *
                          * E0-FC  111ppppp
                          *   Read 4-128 (Multiples of 4)
-                         *   
+                         *
                          * FD-FF  111111pp
                          *   Read 0-3
                          */
@@ -603,7 +710,10 @@ namespace Tiger
                         {
                             int thislength = mSequenceLength;
                             if (thislength > 1028)
+                            {
                                 thislength = 1028;
+                            }
+
                             mSequenceLength -= thislength;
 
                             int offset = mSequenceDest - mSequenceSource - 1;
@@ -615,7 +725,12 @@ namespace Tiger
                             if (thislength > 67 || offset > 16383)
                             {
                                 chunk = new byte[readbytes + 4];
-                                chunk[0] = (byte)(0xC0 | readbytes | (((thislength - 5) >> 6) & 0x0C) | ((offset >> 12) & 0x10));
+                                chunk[0] = (byte)(
+                                    0xC0
+                                    | readbytes
+                                    | (((thislength - 5) >> 6) & 0x0C)
+                                    | ((offset >> 12) & 0x10)
+                                );
                                 chunk[1] = (byte)((offset >> 8) & 0xFF);
                                 chunk[2] = (byte)(offset & 0xFF);
                                 chunk[3] = (byte)((thislength - 5) & 0xFF);
@@ -624,18 +739,32 @@ namespace Tiger
                             {
                                 chunk = new byte[readbytes + 3];
                                 chunk[0] = (byte)(0x80 | ((thislength - 4) & 0x3F));
-                                chunk[1] = (byte)(((readbytes << 6) & 0xC0) | ((offset >> 8) & 0x3F));
+                                chunk[1] = (byte)(
+                                    ((readbytes << 6) & 0xC0) | ((offset >> 8) & 0x3F)
+                                );
                                 chunk[2] = (byte)(offset & 0xFF);
                             }
                             else
                             {
                                 chunk = new byte[readbytes + 2];
-                                chunk[0] = (byte)((readbytes & 0x3) | (((thislength - 3) << 2) & 0x1C) | ((offset >> 3) & 0x60));
+                                chunk[0] = (byte)(
+                                    (readbytes & 0x3)
+                                    | (((thislength - 3) << 2) & 0x1C)
+                                    | ((offset >> 3) & 0x60)
+                                );
                                 chunk[1] = (byte)(offset & 0xFF);
                             }
 
                             if (readbytes > 0)
-                                Array.Copy(data, compressedidx, chunk, chunk.Length - readbytes, readbytes);
+                            {
+                                Array.Copy(
+                                    data,
+                                    compressedidx,
+                                    chunk,
+                                    chunk.Length - readbytes,
+                                    readbytes
+                                );
+                            }
 
                             compressedchunks.Add(chunk);
                             compressedidx += thislength + readbytes;
@@ -674,11 +803,20 @@ namespace Tiger
 
                     for (int loop = 0; loop < compressedchunks.Count; loop++)
                     {
-                        Array.Copy(compressedchunks[loop], 0, compressed, chunkpos, compressedchunks[loop].Length);
+                        Array.Copy(
+                            compressedchunks[loop],
+                            0,
+                            compressed,
+                            chunkpos,
+                            compressedchunks[loop].Length
+                        );
                         chunkpos += compressedchunks[loop].Length;
                     }
                     if (!endisvalid)
+                    {
                         compressed[compressed.Length - 1] = 0xfc;
+                    }
+
                     return compressed;
                 }
 
@@ -696,7 +834,9 @@ namespace Tiger
             // Try a straight forward brute force first
             int end = -mBruteForceLength;
             if (startindex < mBruteForceLength)
+            {
                 end = -startindex;
+            }
 
             byte searchforbyte = mData[startindex];
 
@@ -704,15 +844,21 @@ namespace Tiger
             {
                 byte curbyte = mData[loop + startindex];
                 if (curbyte != searchforbyte)
+                {
                     continue;
+                }
 
                 int len = FindRunLength(startindex + loop, startindex);
 
-                if (len <= mSequenceLength
+                if (
+                    len <= mSequenceLength
                     || len < 3
                     || len < 4 && loop <= -1024
-                    || len < 5 && loop <= -16384)
+                    || len < 5 && loop <= -16384
+                )
+                {
                     continue;
+                }
 
                 mSequenceFound = true;
                 mSequenceSource = startindex + loop;
@@ -728,14 +874,15 @@ namespace Tiger
                 {
                     int len = FindRunLength(matchloc, startindex);
                     if (len < 5)
+                    {
                         continue;
+                    }
 
                     mSequenceFound = true;
                     mSequenceSource = matchloc;
                     mSequenceLength = len;
                     mSequenceDest = startindex;
-                }
-                while (mSequenceLength < 1028 && mTracker.Nextmatch(out matchloc));
+                } while (mSequenceLength < 1028 && mTracker.Nextmatch(out matchloc));
             }
         }
 
@@ -760,12 +907,21 @@ namespace Tiger
             void Reset();
         }
 
-        static IMatchtracker CreateTracker(int blockinterval, int lookupstart, int windowlength, int bucketdepth)
+        static IMatchtracker CreateTracker(
+            int blockinterval,
+            int lookupstart,
+            int windowlength,
+            int bucketdepth
+        )
         {
             if (bucketdepth <= 1)
+            {
                 return new SingledepthMatchTracker(blockinterval, lookupstart, windowlength);
+            }
             else
+            {
                 return new DeepMatchTracker(blockinterval, lookupstart, windowlength, bucketdepth);
+            }
         }
 
         static IMatchtracker CreateTracker(int level, out int bruteforcelength)
@@ -814,13 +970,19 @@ namespace Tiger
                 mInterval = blockinterval;
                 if (lookupstart > 0)
                 {
-                    mPendingValues = new UInt32[lookupstart / blockinterval];
+                    mPendingValues = new uint[lookupstart / blockinterval];
                     mQueueLength = mPendingValues.Length * blockinterval;
                 }
                 else
+                {
                     mQueueLength = 0;
-                mInsertedValues = new UInt32[windowlength / blockinterval - lookupstart / blockinterval];
-                mWindowStart = -(mInsertedValues.Length + lookupstart / blockinterval) * blockinterval - 4;
+                }
+
+                mInsertedValues = new uint[
+                    windowlength / blockinterval - lookupstart / blockinterval
+                ];
+                mWindowStart =
+                    -(mInsertedValues.Length + lookupstart / blockinterval) * blockinterval - 4;
             }
 
             public void Reset()
@@ -829,7 +991,10 @@ namespace Tiger
                 mRunningValue = 0;
 
                 mRollingInterval = 0;
-                mWindowStart = -(mInsertedValues.Length + (mPendingValues != null ? mPendingValues.Length : 0)) * mInterval - 4;
+                mWindowStart =
+                    -(mInsertedValues.Length + (mPendingValues != null ? mPendingValues.Length : 0))
+                        * mInterval
+                    - 4;
                 mDataLength = 0;
 
                 mInitialized = false;
@@ -840,18 +1005,19 @@ namespace Tiger
             }
 
             // Current 32 bit value of the last 4 bytes
-            private UInt32 mRunningValue;
+            private uint mRunningValue;
 
             // How often to insert into the table
-            private int mInterval;
+            private readonly int mInterval;
+
             // Avoid division by using a rolling count instead
             private int mRollingInterval;
 
             // How many bytes to queue up before adding it to the lookup table
-            private int mQueueLength;
+            private readonly int mQueueLength;
 
             // Queued up values for future matches
-            private UInt32[] mPendingValues;
+            private readonly uint[] mPendingValues;
             private int mPendingOffset;
 
             // Bytes processed so far
@@ -862,11 +1028,11 @@ namespace Tiger
             private bool mInitialized;
 
             // Values values pending removal
-            private UInt32[] mInsertedValues;
+            private readonly uint[] mInsertedValues;
             private int mInsertLocation;
 
             // Hash of seen values
-            private Dictionary<UInt32, int> mLookupTable = new Dictionary<uint, int>();
+            private readonly Dictionary<uint, int> mLookupTable = [];
 
             #region IMatchtracker Members
 
@@ -891,21 +1057,28 @@ namespace Tiger
                         {
                             int idx;
                             if (mInsertLocation == mInsertedValues.Length)
+                            {
                                 mInsertLocation = 0;
-                            UInt32 oldval = mInsertedValues[mInsertLocation];
+                            }
+
+                            uint oldval = mInsertedValues[mInsertLocation];
                             if (mLookupTable.TryGetValue(oldval, out idx) && idx == mWindowStart)
+                            {
                                 mLookupTable.Remove(oldval);
+                            }
                         }
                         if (mPendingValues != null)
                         {
                             // Pop the top of the queue and put it in the table
                             if (mDataLength > mQueueLength + 4)
                             {
-                                UInt32 poppedval = mPendingValues[mPendingOffset];
+                                uint poppedval = mPendingValues[mPendingOffset];
                                 mInsertedValues[mInsertLocation] = poppedval;
                                 mInsertLocation++;
                                 if (mInsertLocation > mInsertedValues.Length)
+                                {
                                     mInsertLocation = 0;
+                                }
 
                                 // Put it into the table
                                 mLookupTable[poppedval] = mDataLength - mQueueLength - 4;
@@ -914,7 +1087,9 @@ namespace Tiger
                             mPendingValues[mPendingOffset] = mRunningValue;
                             mPendingOffset++;
                             if (mPendingOffset == mPendingValues.Length)
+                            {
                                 mPendingOffset = 0;
+                            }
                         }
                         else
                         {
@@ -922,7 +1097,9 @@ namespace Tiger
                             mInsertedValues[mInsertLocation] = mRunningValue;
                             mInsertLocation++;
                             if (mInsertLocation > mInsertedValues.Length)
+                            {
                                 mInsertLocation = 0;
+                            }
 
                             mLookupTable[mRunningValue] = mDataLength - 4;
                         }
@@ -932,7 +1109,10 @@ namespace Tiger
                 {
                     mRollingInterval++;
                     if (mRollingInterval == mInterval)
+                    {
                         mRollingInterval = 0;
+                    }
+
                     mInitialized = (mDataLength == 3);
                 }
 
@@ -951,18 +1131,29 @@ namespace Tiger
 
         private class DeepMatchTracker : IMatchtracker
         {
-            public DeepMatchTracker(int blockinterval, int lookupstart, int windowlength, int bucketdepth)
+            public DeepMatchTracker(
+                int blockinterval,
+                int lookupstart,
+                int windowlength,
+                int bucketdepth
+            )
             {
                 mInterval = blockinterval;
                 if (lookupstart > 0)
                 {
-                    mPendingValues = new UInt32[lookupstart / blockinterval];
+                    mPendingValues = new uint[lookupstart / blockinterval];
                     mQueueLength = mPendingValues.Length * blockinterval;
                 }
                 else
+                {
                     mQueueLength = 0;
-                mInsertedValues = new UInt32[windowlength / blockinterval - lookupstart / blockinterval];
-                mWindowStart = -(mInsertedValues.Length + lookupstart / blockinterval) * blockinterval - 4;
+                }
+
+                mInsertedValues = new uint[
+                    windowlength / blockinterval - lookupstart / blockinterval
+                ];
+                mWindowStart =
+                    -(mInsertedValues.Length + lookupstart / blockinterval) * blockinterval - 4;
                 mBucketDepth = bucketdepth;
             }
 
@@ -972,7 +1163,10 @@ namespace Tiger
                 mRunningValue = 0;
 
                 mRollingInterval = 0;
-                mWindowStart = -(mInsertedValues.Length + (mPendingValues != null ? mPendingValues.Length : 0)) * mInterval - 4;
+                mWindowStart =
+                    -(mInsertedValues.Length + (mPendingValues != null ? mPendingValues.Length : 0))
+                        * mInterval
+                    - 4;
                 mDataLength = 0;
 
                 mInitialized = false;
@@ -984,21 +1178,22 @@ namespace Tiger
                 // No need to clear the arrays, the values will be ignored by the next time around
             }
 
-            private int mBucketDepth;
+            private readonly int mBucketDepth;
 
             // Current 32 bit value of the last 4 bytes
-            private UInt32 mRunningValue;
+            private uint mRunningValue;
 
             // How often to insert into the table
-            private int mInterval;
+            private readonly int mInterval;
+
             // Avoid division by using a rolling count instead
             private int mRollingInterval;
 
             // How many bytes to queue up before adding it to the lookup table
-            private int mQueueLength;
+            private readonly int mQueueLength;
 
             // Queued up values for future matches
-            private UInt32[] mPendingValues;
+            private readonly uint[] mPendingValues;
             private int mPendingOffset;
 
             // Bytes processed so far
@@ -1009,14 +1204,14 @@ namespace Tiger
             private bool mInitialized;
 
             // Values values pending removal
-            private UInt32[] mInsertedValues;
+            private readonly uint[] mInsertedValues;
             private int mInsertLocation;
 
             // Hash of seen values
-            private Dictionary<UInt32, List<int>> mLookupTable = new Dictionary<uint, List<int>>();
+            private readonly Dictionary<uint, List<int>> mLookupTable = [];
 
             // Save allocating items unnecessarily
-            private Stack<List<int>> mUnusedLists = new Stack<List<int>>();
+            private readonly Stack<List<int>> mUnusedLists = new();
 
             private List<int> mCurrentMatch;
             private int mCurrentMatchIndex;
@@ -1037,9 +1232,15 @@ namespace Tiger
                         {
                             List<int> locations;
                             if (mInsertLocation == mInsertedValues.Length)
+                            {
                                 mInsertLocation = 0;
-                            UInt32 oldval = mInsertedValues[mInsertLocation];
-                            if (mLookupTable.TryGetValue(oldval, out locations) && locations[0] == mWindowStart)
+                            }
+
+                            uint oldval = mInsertedValues[mInsertLocation];
+                            if (
+                                mLookupTable.TryGetValue(oldval, out locations)
+                                && locations[0] == mWindowStart
+                            )
                             {
                                 locations.RemoveAt(0);
                                 if (locations.Count == 0)
@@ -1054,11 +1255,13 @@ namespace Tiger
                             // Pop the top of the queue and put it in the table
                             if (mDataLength > mQueueLength + 4)
                             {
-                                UInt32 poppedval = mPendingValues[mPendingOffset];
+                                uint poppedval = mPendingValues[mPendingOffset];
                                 mInsertedValues[mInsertLocation] = poppedval;
                                 mInsertLocation++;
                                 if (mInsertLocation > mInsertedValues.Length)
+                                {
                                     mInsertLocation = 0;
+                                }
 
                                 // Put it into the table
                                 List<int> locations;
@@ -1066,15 +1269,22 @@ namespace Tiger
                                 {
                                     // Check if the bucket runneth over
                                     if (locations.Count == mBucketDepth)
+                                    {
                                         locations.RemoveAt(0);
+                                    }
                                 }
                                 else
                                 {
                                     // Allocate a new bucket
                                     if (mUnusedLists.Count > 0)
+                                    {
                                         locations = mUnusedLists.Pop();
+                                    }
                                     else
-                                        locations = new List<int>();
+                                    {
+                                        locations = [];
+                                    }
+
                                     mLookupTable[poppedval] = locations;
                                 }
                                 locations.Add(mDataLength - mQueueLength - 4);
@@ -1083,14 +1293,18 @@ namespace Tiger
                             mPendingValues[mPendingOffset] = mRunningValue;
                             mPendingOffset++;
                             if (mPendingOffset == mPendingValues.Length)
+                            {
                                 mPendingOffset = 0;
+                            }
                         }
                         else
                         {
                             mInsertedValues[mInsertLocation] = mRunningValue;
                             mInsertLocation++;
                             if (mInsertLocation > mInsertedValues.Length)
+                            {
                                 mInsertLocation = 0;
+                            }
 
                             // Put it into the table
                             List<int> locations;
@@ -1098,15 +1312,22 @@ namespace Tiger
                             {
                                 // Check if the bucket runneth over
                                 if (locations.Count == mBucketDepth)
+                                {
                                     locations.RemoveAt(0);
+                                }
                             }
                             else
                             {
                                 // Allocate a new bucket
                                 if (mUnusedLists.Count > 0)
+                                {
                                     locations = mUnusedLists.Pop();
+                                }
                                 else
-                                    locations = new List<int>();
+                                {
+                                    locations = [];
+                                }
+
                                 mLookupTable[mRunningValue] = locations;
                             }
                             locations.Add(mDataLength - 4);
@@ -1117,7 +1338,10 @@ namespace Tiger
                 {
                     mRollingInterval++;
                     if (mRollingInterval == mInterval)
+                    {
                         mRollingInterval = 0;
+                    }
+
                     mInitialized = (mDataLength == 3);
                 }
                 mRunningValue = (mRunningValue << 8) | val;

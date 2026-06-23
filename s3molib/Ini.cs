@@ -49,17 +49,22 @@ namespace s3molib
             if (!Directory.Exists(Path.GetDirectoryName(path)))
             {
                 try
-                { Directory.CreateDirectory(Path.GetDirectoryName(path)); }
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(path));
+                }
                 catch (Exception ex)
-                { Logger.LogError(ex.ToString()); return false; }
+                {
+                    Logger.LogError(ex.ToString());
+                    return false;
+                }
             }
 
-            string[] existingLines = new string[0];
+            string[] existingLines = [];
 
             if (File.Exists(path))
                 existingLines = File.ReadAllLines(path);
 
-            StreamWriter w = new StreamWriter(path);
+            StreamWriter w = new(path);
 
             if (existingLines.Length > 0)
             {

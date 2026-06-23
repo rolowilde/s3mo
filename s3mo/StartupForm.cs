@@ -1,78 +1,85 @@
 ﻿using Microsoft.Win32;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 
-namespace s3mo
+namespace s3mo;
+
+public partial class StartupForm : Form
 {
-    public partial class StartupForm : Form
+    public StartupForm()
     {
-        public StartupForm()
+        InitializeComponent();
+    }
+
+    private void StartupForm_Load(object sender, EventArgs e)
+    {
+        string? gamePath = GetGamePath("SOFTWARE\\WOW6432Node\\Sims\\The Sims 3");
+
+        if (gamePath == null)
         {
-            InitializeComponent();
+            gamePath = GetGamePath("SOFTWARE\\WOW6432Node\\Sims(Steam)\\The Sims 3");
         }
 
-        private void StartupForm_Load(object sender, EventArgs e)
+        string? documentPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "Electronic Arts\\The Sims 3"
+        );
+
+        if (gamePath != null && File.Exists(gamePath))
         {
-            string? gamePath = GetGamePath("SOFTWARE\\WOW6432Node\\Sims\\The Sims 3");
-
-            if (gamePath == null)
-                gamePath = GetGamePath("SOFTWARE\\WOW6432Node\\Sims(Steam)\\The Sims 3");
-
-            string? documentPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Electronic Arts\\The Sims 3");
-
-            if (gamePath != null && File.Exists(gamePath))
-                gamePathTextBox.Text = gamePath;
-            if (Directory.Exists(documentPath))
-                documentsTextBox.Text = documentPath;
+            gamePathTextBox.Text = gamePath;
         }
 
-        private string? GetGamePath(string registryPath)
+        if (Directory.Exists(documentPath))
         {
-            RegistryKey? registryKey = Registry.LocalMachine.OpenSubKey(registryPath);
+            documentsTextBox.Text = documentPath;
+        }
+    }
 
-            if (registryKey != null)
+    private string? GetGamePath(string registryPath)
+    {
+        RegistryKey? registryKey = Registry.LocalMachine.OpenSubKey(registryPath);
+
+        if (registryKey != null)
+        {
+            string? obj = registryKey.GetValue("exepath") as string;
+
+            if (obj != null)
             {
-                string? obj = registryKey.GetValue("exepath") as string;
-
-                if (obj != null )
-                    return obj;
+                return obj;
             }
-            return null;
         }
+        return null;
+    }
 
-        private void gamePathButton_Click(object sender, EventArgs e)
+    private void gamePathButton_Click(object sender, EventArgs e)
+    {
+        OpenFileDialog dialog = new();
+        dialog.Filter =
+            "Sims 3 Executables|Sims3Launcher.exe;Sims3LauncherW.exe;TS3.exe;TS3W.exe;|All Executables|*.exe";
+        if (dialog.ShowDialog() == DialogResult.OK)
         {
-            OpenFileDialog dialog = new OpenFileDialog();
-            dialog.Filter = "Sims 3 Executables|Sims3Launcher.exe;Sims3LauncherW.exe;TS3.exe;TS3W.exe;|All Executables|*.exe";
-            if (dialog.ShowDialog() == DialogResult.OK)
-                gamePathTextBox.Text = dialog.FileName;
+            gamePathTextBox.Text = dialog.FileName;
         }
+    }
 
-        private void documentsButton_Click(object sender, EventArgs e)
+    private void documentsButton_Click(object sender, EventArgs e)
+    {
+        FolderBrowserDialog dialog = new();
+        if (dialog.ShowDialog() == DialogResult.OK)
         {
-            FolderBrowserDialog dialog = new FolderBrowserDialog();
-            if (dialog.ShowDialog() == DialogResult.OK)
-                documentsTextBox.Text = dialog.SelectedPath;
+            documentsTextBox.Text = dialog.SelectedPath;
         }
+    }
 
-        private void okButton_Click(object sender, EventArgs e)
-        {
-            Settings.SetSettings("GameExecutablePath", gamePathTextBox.Text);
-            Settings.SetSettings("DocumentsFolderPath", documentsTextBox.Text);
-            Settings.WriteSettings();
-            this.Close();
-        }
+    private void okButton_Click(object sender, EventArgs e)
+    {
+        Settings.SetSettings("GameExecutablePath", gamePathTextBox.Text);
+        Settings.SetSettings("DocumentsFolderPath", documentsTextBox.Text);
+        Settings.WriteSettings();
+        Close();
+    }
 
-        private void cancelButton_Click(object sender, EventArgs e)
-        {
-            this.Close();
-        }
+    private void cancelButton_Click(object sender, EventArgs e)
+    {
+        Close();
     }
 }

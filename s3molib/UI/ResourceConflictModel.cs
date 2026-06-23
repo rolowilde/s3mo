@@ -1,22 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿namespace s3molib;
 
-namespace s3molib
+public class ResourceConflictModel(
+    string resourceKey,
+    string packageName,
+    string otherModName,
+    string otherPackageName
+)
 {
-    public class ResourceConflictModel
-    {
-        public string ResourceKey { get; private set; }
-        public string PackageName { get; private set; }
-        public string OtherModName { get; private set; }
-        public string OtherPackageName { get; private set; }
-
-        public ResourceConflictModel(string resourceKey, string packageName, string otherModName, string otherPackageName)
-        {
-            ResourceKey = resourceKey;
-            PackageName = packageName;
-            OtherModName = otherModName;
-            OtherPackageName = otherPackageName;
-        }
-    }
+    public string ResourceKey { get; private set; } = resourceKey;
+    public string PackageName { get; private set; } = packageName;
+    public string OtherModName { get; private set; } = otherModName;
+    public string OtherPackageName { get; private set; } = otherPackageName;
 }

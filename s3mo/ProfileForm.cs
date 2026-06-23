@@ -1,61 +1,61 @@
 ﻿using s3molib;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 
-namespace s3mo
+namespace s3mo;
+
+public partial class ProfileForm : Form
 {
-    public partial class ProfileForm : Form
+    private readonly string _currentProfile;
+    readonly Dictionary<string, string> _profileLookUp = [];
+
+    public ProfileForm(string currentProfile)
     {
-        private string _currentProfile;
-        Dictionary<string, string> _profileLookUp = new Dictionary<string, string>();
+        _currentProfile = currentProfile;
+        InitializeComponent();
+    }
 
-        public ProfileForm(string currentProfile)
+    private void ProfileForm_Load(object sender, EventArgs e)
+    {
+        string profileFolderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Profiles");
+        string[] profilePaths = Directory.GetDirectories(profileFolderPath);
+
+        foreach (string path in profilePaths)
         {
-            _currentProfile = currentProfile;
-            InitializeComponent();
+            string name = Path.GetFileName(path);
+            _profileLookUp.Add(name, path);
+            listBox.Items.Add(name);
         }
 
-
-        private void ProfileForm_Load(object sender, EventArgs e)
+        if (!_profileLookUp.ContainsKey(_currentProfile))
         {
-            string profileFolderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Profiles");
-            string[] profilePaths = Directory.GetDirectories(profileFolderPath);
-
-            foreach (string path in profilePaths)
+            string currentProfilePath = Path.Combine(
+                AppDomain.CurrentDomain.BaseDirectory,
+                $"Profiles\\{_currentProfile}"
+            );
+            try
             {
-                string name = Path.GetFileName(path);
-                _profileLookUp.Add(name, path);
-                listBox.Items.Add(name);
+                Directory.CreateDirectory(currentProfilePath);
             }
-
-            if (!_profileLookUp.ContainsKey(_currentProfile))
+            catch (Exception ex)
             {
-                string currentProfilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"Profiles\\{_currentProfile}");
-                try
-                { Directory.CreateDirectory(currentProfilePath); }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Current profile {_currentProfile} doesn't exists in profiles folder and couldn't create new directory for it - {ex.Message}",
-                    "Error creating directory", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    this.Close();
-                }
-                _profileLookUp.Add(_currentProfile, currentProfilePath);
-                listBox.Items.Add(_currentProfile);
+                MessageBox.Show(
+                    $"Current profile {_currentProfile} doesn't exists in profiles folder and couldn't create new directory for it - {ex.Message}",
+                    "Error creating directory",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+                Close();
             }
-
+            _profileLookUp.Add(_currentProfile, currentProfilePath);
+            listBox.Items.Add(_currentProfile);
         }
+    }
 
-        private string PromptEnterProfileName()
-        {
-            string newProfile = null!;
-            TextBoxForm form = new TextBoxForm("Enter profile name:", (s) =>
+    private string PromptEnterProfileName()
+    {
+        string newProfile = null!;
+        TextBoxForm form = new(
+            "Enter profile name:",
+            (s) =>
             {
                 if (!Helper.CheckValidFolderName(s))
                 {
@@ -68,7 +68,10 @@ namespace s3mo
                     return false;
                 }
 
-                string newPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"Profiles\\{s}");
+                string newPath = Path.Combine(
+                    AppDomain.CurrentDomain.BaseDirectory,
+                    $"Profiles\\{s}"
+                );
 
                 if (Directory.Exists(newPath))
                 {
@@ -82,7 +85,12 @@ namespace s3mo
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(ex.Message, "Couldn't create directory.", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(
+                        ex.Message,
+                        "Couldn't create directory.",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
                     return false;
                 }
 
@@ -91,74 +99,96 @@ namespace s3mo
                 newProfile = s;
 
                 return true;
-            });
+            }
+        );
 
-            this.Enabled = false;
-            form.FormClosed += (s, e) => this.Enabled = true;
-            form.ShowDialog();
-            return newProfile;
+        Enabled = false;
+        form.FormClosed += (s, e) => Enabled = true;
+        form.ShowDialog();
+        return newProfile;
+    }
+
+    private void addButton_Click(object sender, EventArgs e)
+    {
+        PromptEnterProfileName();
+    }
+
+    private void removeButton_Click(object sender, EventArgs e)
+    {
+        if (listBox.SelectedItem == null)
+        {
+            return;
         }
 
+        string selected = listBox.SelectedItem.ToString()!;
 
-        private void addButton_Click(object sender, EventArgs e)
+        if (selected.Equals(_currentProfile))
         {
-            PromptEnterProfileName();
+            MessageBox.Show("Please switch to another profile before removing this profile.");
+            return;
         }
 
-        private void removeButton_Click(object sender, EventArgs e)
+        DialogResult r = MessageBox.Show(
+            $"Delete {selected} permanently?",
+            "Delete profile",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning
+        );
+        if (r == DialogResult.No)
         {
-            if (listBox.SelectedItem == null)
-                return;
-
-            string selected = listBox.SelectedItem.ToString()!;
-
-            if (selected.Equals(_currentProfile))
-            {
-                MessageBox.Show("Please switch to another profile before removing this profile.");
-                return;
-            }
-
-            DialogResult r = MessageBox.Show($"Delete {selected} permanently?", "Delete profile", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-            if (r == DialogResult.No)
-                return;
-
-            try
-            {
-                Directory.Delete(_profileLookUp[selected], true);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "Could not delete folder", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-
-            _profileLookUp.Remove(selected);
-            listBox.Items.Remove(listBox.SelectedItem);
+            return;
         }
 
-        private void copyButton_Click(object sender, EventArgs e)
+        try
         {
-            if (listBox.SelectedItem == null)
-                return;
+            Directory.Delete(_profileLookUp[selected], true);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                ex.Message,
+                "Could not delete folder",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error
+            );
+            return;
+        }
 
-            string newProfile = PromptEnterProfileName();
+        _profileLookUp.Remove(selected);
+        listBox.Items.Remove(listBox.SelectedItem);
+    }
 
-            if (newProfile == null)
-                return;
+    private void copyButton_Click(object sender, EventArgs e)
+    {
+        if (listBox.SelectedItem == null)
+        {
+            return;
+        }
 
-            string selected = listBox.SelectedItem.ToString()!;
-            string exePath = AppDomain.CurrentDomain.BaseDirectory;
-            string sourceModListPath = Path.Combine(exePath, $"Profiles\\{selected}\\modlist.txt");
-            string newModlistPath = Path.Combine(exePath, $"Profiles\\{newProfile}\\modlist.txt");
+        string newProfile = PromptEnterProfileName();
 
-            try
-            {
-                File.Copy(sourceModListPath, newModlistPath);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "Could not copy 'modlist.txt'", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+        if (newProfile == null)
+        {
+            return;
+        }
+
+        string selected = listBox.SelectedItem.ToString()!;
+        string exePath = AppDomain.CurrentDomain.BaseDirectory;
+        string sourceModListPath = Path.Combine(exePath, $"Profiles\\{selected}\\modlist.txt");
+        string newModlistPath = Path.Combine(exePath, $"Profiles\\{newProfile}\\modlist.txt");
+
+        try
+        {
+            File.Copy(sourceModListPath, newModlistPath);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                ex.Message,
+                "Could not copy 'modlist.txt'",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error
+            );
         }
     }
 }

@@ -1,112 +1,149 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using ns;
 
-namespace s3molib
+namespace s3molib;
+
+public class PackageModel
 {
-    public class PackageModel
+    /// <summary>Parent ModModel that owns this PackageModel</summary>
+    public ModModel ModModel { get; private set; }
+    public string FilePath { get; private set; }
+    public string Name { get; private set; }
+    public byte[] Hash { get; set; }
+
+    public Package Package
     {
-        /// <summary>Parent ModModel that owns this PackageModel</summary>
-        public ModModel ModModel { get; private set; }
-        public string FilePath { get; private set; }
-        public string Name { get; private set; }
-        public byte[] HashBytes { get; private set; }
-        public void SetHash(byte[] hashBytes) => HashBytes = hashBytes;
-        public Package Package
+        get
         {
-            get
+            if (_package == null)
             {
-                if (_package == null)
+                if (!File.Exists(FilePath))
                 {
-                    if (!File.Exists(FilePath))
-                        throw new Exception($"{Name} is not found in path {Path.GetDirectoryName(FilePath)}.");
-                    _package = Package.Load(FilePath);
+                    throw new Exception(
+                        $"{Name} is not found in path {Path.GetDirectoryName(FilePath)}."
+                    );
                 }
-                return _package;
+
+                _package = Package.Load(FilePath);
             }
+            return _package;
         }
-        private Package _package = null;
+    }
+    private Package _package;
 
-        public List<PackageModel> ConflictingPackageModelsInModModel => new List<PackageModel>(_conflictingPackageModelsInModModel);
-        private HashSet<PackageModel> _conflictingPackageModelsInModModel = new HashSet<PackageModel>();
+    public List<PackageModel> ConflictingPackageModelsInModModel =>
+        new(_conflictingPackageModelsInModModel);
+    private readonly HashSet<PackageModel> _conflictingPackageModelsInModModel = [];
 
-        public List<string> GetConflictingResources() => new List<string>(_resourceOtherPackageModelsLookup.Keys);
-        public List<PackageModel> GetConflictingPackageModelsByResource(string key) => _resourceOtherPackageModelsLookup[key];
-        private Dictionary<string, List<PackageModel>> _resourceOtherPackageModelsLookup = new Dictionary<string, List<PackageModel>>();
+    public List<string> GetConflictingResources() => new(_resourceOtherPackageModelsLookup.Keys);
 
-        public PackageModel(ModModel modModel, string path)
+    public List<PackageModel> GetConflictingPackageModelsByResource(string key) =>
+        _resourceOtherPackageModelsLookup[key];
+
+    private readonly Dictionary<string, List<PackageModel>> _resourceOtherPackageModelsLookup = [];
+
+    public PackageModel(ModModel modModel, string path)
+    {
+        ModModel = modModel;
+        FilePath = path;
+        Name = Path.GetFileName(path);
+    }
+
+    public void Update(string path)
+    {
+        FilePath = path;
+        Name = Path.GetFileName(path);
+        _package = null;
+    }
+
+    public static bool FastCheckConflict(ModModel modModel1, ModModel modModel2)
+    {
+        foreach (PackageModel packageModel in modModel1.PackageModels)
         {
-            ModModel = modModel;
-            FilePath = path;
-            Name = Path.GetFileName(path);
-        }
-
-        public void Update(string path)
-        {
-            FilePath = path;
-            Name = Path.GetFileName(path);
-            _package = null;
-        }
-
-        public static bool FastCheckConflict(ModModel modModel1, ModModel modModel2)
-        {
-            foreach (PackageModel packageModel in modModel1.PackageModels)
+            foreach (PackageModel otherPackageModel in modModel2.PackageModels)
             {
-                foreach (PackageModel otherPackageModel in modModel2.PackageModels)
+                if (
+                    packageModel.Package.IsConflictingWith(
+                        otherPackageModel.Package,
+                        out _,
+                        out _,
+                        true
+                    )
+                )
                 {
-                    if (packageModel.Package.IsConflictingWith(otherPackageModel.Package, out _, out _, true))
-                        return true;
-                }
-            }
-            return false;
-        }
-
-        public static void CheckConflictsInModModel(ModModel modModel)
-        {
-            List<PackageModel> packageModels = modModel.PackageModels;
-            packageModels.ForEach(p => p._conflictingPackageModelsInModModel.Clear());
-
-            for (int i = 0; i < packageModels.Count - 1; i++)
-            {
-                PackageModel packageModel = packageModels[i];
-
-                for (int j = i + 1; j < packageModels.Count; j++)
-                {
-                    PackageModel otherPackageModel = packageModels[j];
-
-                    if (packageModel.Package.IsConflictingWith(otherPackageModel.Package, out _, out _, true))
-                    {
-                        packageModel._conflictingPackageModelsInModModel.Add(otherPackageModel);
-                        otherPackageModel._conflictingPackageModelsInModModel.Add(packageModel);
-                    }
+                    return true;
                 }
             }
         }
+        return false;
+    }
 
-        public void CheckConflicts(PackageModel otherPackageModel)
+    public static void CheckConflictsInModModel(ModModel modModel)
+    {
+        List<PackageModel> packageModels = modModel.PackageModels;
+        packageModels.ForEach(p => p._conflictingPackageModelsInModModel.Clear());
+
+        for (int i = 0; i < packageModels.Count - 1; i++)
         {
-            // Might want to find a way to clear the dictionary before, if there's any bugs.
-            // But shouldn't need to since refresh button creates new models and recalculate everything and this is just disposed.
+            PackageModel packageModel = packageModels[i];
 
-            if (this.Package.IsConflictingWith(otherPackageModel.Package, out List<ResourceEntry> conflictingResourceEntries, out _, false))
+            for (int j = i + 1; j < packageModels.Count; j++)
             {
-                foreach (ResourceEntry resourceEntry in conflictingResourceEntries)
+                PackageModel otherPackageModel = packageModels[j];
+
+                if (
+                    packageModel.Package.IsConflictingWith(
+                        otherPackageModel.Package,
+                        out _,
+                        out _,
+                        true
+                    )
+                )
                 {
-                    string resource = resourceEntry.ToString();
-
-                    if (!this._resourceOtherPackageModelsLookup.ContainsKey(resource))
-                        this._resourceOtherPackageModelsLookup.Add(resource, new List<PackageModel>() { otherPackageModel });
-                    else
-                        this._resourceOtherPackageModelsLookup[resource].Add(otherPackageModel);
-
-                    if (!otherPackageModel._resourceOtherPackageModelsLookup.ContainsKey(resource))
-                        otherPackageModel._resourceOtherPackageModelsLookup.Add(resource, new List<PackageModel>() { this });
-                    else
-                        otherPackageModel._resourceOtherPackageModelsLookup[resource].Add(this);
+                    packageModel._conflictingPackageModelsInModModel.Add(otherPackageModel);
+                    otherPackageModel._conflictingPackageModelsInModModel.Add(packageModel);
                 }
             }
         }
+    }
 
+    public void CheckConflicts(PackageModel otherPackageModel)
+    {
+        // Might want to find a way to clear the dictionary before, if there's any bugs.
+        // But shouldn't need to since refresh button creates new models and recalculate everything and this is just disposed.
+
+        if (
+            Package.IsConflictingWith(
+                otherPackageModel.Package,
+                out List<ResourceEntry> conflictingResourceEntries,
+                out _,
+                false
+            )
+        )
+        {
+            foreach (ResourceEntry resourceEntry in conflictingResourceEntries)
+            {
+                string resource = resourceEntry.ToString();
+
+                if (!_resourceOtherPackageModelsLookup.ContainsKey(resource))
+                {
+                    _resourceOtherPackageModelsLookup.Add(resource, [otherPackageModel]);
+                }
+                else
+                {
+                    _resourceOtherPackageModelsLookup[resource].Add(otherPackageModel);
+                }
+
+                if (!otherPackageModel._resourceOtherPackageModelsLookup.ContainsKey(resource))
+                {
+                    otherPackageModel._resourceOtherPackageModelsLookup.Add(resource, [this]);
+                }
+                else
+                {
+                    otherPackageModel._resourceOtherPackageModelsLookup[resource].Add(this);
+                }
+            }
+        }
     }
 }

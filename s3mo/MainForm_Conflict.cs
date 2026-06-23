@@ -1,147 +1,158 @@
-﻿using s3molib;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.ComponentModel;
+using s3molib;
 
-namespace s3mo
+namespace s3mo;
+
+partial class MainForm
 {
-    partial class MainForm
+    private bool checkConflictBetweenModModelBackgroundWorker_restart;
+    private bool checkConflictInModModelBackgroundWorker_restart;
+    private bool checkDetailedConflictBetweenModModelBackgroundWorker_restart;
+
+    private void CheckConflictsBetweenModModels()
     {
-        private bool checkConflictBetweenModModelBackgroundWorker_restart = false;
-        private bool checkConflictInModModelBackgroundWorker_restart = false;
-        private bool checkDetailedConflictBetweenModModelBackgroundWorker_restart = false;
-
-        private void CheckConflictsBetweenModModels()
+        if (checkConflictBetweenModModelBackgroundWorker.IsBusy)
         {
-            if (checkConflictBetweenModModelBackgroundWorker.IsBusy)
-            {
-                checkConflictBetweenModModelBackgroundWorker_restart = true;
-                checkConflictBetweenModModelBackgroundWorker.CancelAsync();
-            }
-            else
-            {
-                refreshButton.Enabled = false;
-                modListView.Enabled = false;
-                checkConflictBetweenModModelBackgroundWorker.RunWorkerAsync();
-            }
+            checkConflictBetweenModModelBackgroundWorker_restart = true;
+            checkConflictBetweenModModelBackgroundWorker.CancelAsync();
         }
-
-        private void checkConflictBetweenModModelBackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
+        else
         {
-            if (checkConflictBetweenModModelBackgroundWorker.CancellationPending)
-            {
-                e.Cancel = true;
-                return;
-            }
-            _profileModel.CheckModModelConflicts();
+            refreshButton.Enabled = false;
+            modListView.Enabled = false;
+            checkConflictBetweenModModelBackgroundWorker.RunWorkerAsync();
         }
+    }
 
-        private void checkConflictBetweenModModelBackgroundWorker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+    private void checkConflictBetweenModModelBackgroundWorker_DoWork(
+        object sender,
+        DoWorkEventArgs e
+    )
+    {
+        if (checkConflictBetweenModModelBackgroundWorker.CancellationPending)
         {
-            if (checkConflictBetweenModModelBackgroundWorker_restart)
-            {
-                refreshButton.Enabled = false;
-                modListView.Enabled = false;
-
-                checkConflictBetweenModModelBackgroundWorker_restart = false;
-                checkConflictBetweenModModelBackgroundWorker.RunWorkerAsync();
-            }
-            else
-            {
-                modListView.Enabled = true;
-                modListView.Refresh();
-
-                if (!checkConflictInModModelBackgroundWorker.IsBusy)
-                    refreshButton.Enabled = true;
-
-                Invoke(CheckDetailedConflictsBetweenModModels);
-                Logger.Log("Finished fast conflict checking between mods.");
-            }
+            e.Cancel = true;
+            return;
         }
+        _profileModel.CheckModModelConflicts();
+    }
 
-
-
-        private void CheckConflictsInModModels()
+    private void checkConflictBetweenModModelBackgroundWorker_RunWorkerCompleted(
+        object sender,
+        RunWorkerCompletedEventArgs e
+    )
+    {
+        if (checkConflictBetweenModModelBackgroundWorker_restart)
         {
-            if (checkConflictInModModelBackgroundWorker.IsBusy)
-            {
-                checkConflictInModModelBackgroundWorker_restart = true;
-                checkConflictInModModelBackgroundWorker.CancelAsync();
-            }
-            else
-            {
-                refreshButton.Enabled = false;
-                fileListView.Enabled = false;
-                checkConflictInModModelBackgroundWorker.RunWorkerAsync();
-            }
+            refreshButton.Enabled = false;
+            modListView.Enabled = false;
+
+            checkConflictBetweenModModelBackgroundWorker_restart = false;
+            checkConflictBetweenModModelBackgroundWorker.RunWorkerAsync();
         }
-
-        private void checkConflictInModModelBackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
+        else
         {
-            if (checkConflictInModModelBackgroundWorker.CancellationPending)
+            modListView.Enabled = true;
+            modListView.Refresh();
+
+            if (!checkConflictInModModelBackgroundWorker.IsBusy)
             {
-                e.Cancel = true;
-                return;
+                refreshButton.Enabled = true;
             }
-            _profileModel.CheckPackageConflicts();
+
+            Invoke(CheckDetailedConflictsBetweenModModels);
+            Logger.Log("Finished fast conflict checking between mods.");
         }
+    }
 
-        private void checkConflictInModModelBackgroundWorker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+    private void CheckConflictsInModModels()
+    {
+        if (checkConflictInModModelBackgroundWorker.IsBusy)
         {
-            if (checkConflictInModModelBackgroundWorker_restart)
-            {
-                checkConflictBetweenModModelBackgroundWorker_restart = false;
-                checkConflictBetweenModModelBackgroundWorker.RunWorkerAsync();
-            }
-            else
-            {
-                fileListView.Enabled = true;
-                fileListView.Refresh();
-
-                if (!checkConflictInModModelBackgroundWorker.IsBusy)
-                    refreshButton.Enabled = true;
-
-                Logger.Log("Finished conflict checking in mods.");
-            }
+            checkConflictInModModelBackgroundWorker_restart = true;
+            checkConflictInModModelBackgroundWorker.CancelAsync();
         }
-
-
-
-        private void CheckDetailedConflictsBetweenModModels()
+        else
         {
-            if (checkDetailedConflictBetweenModModelBackgroundWorker.IsBusy)
-            {
-                checkDetailedConflictBetweenModModelBackgroundWorker_restart = true;
-                checkDetailedConflictBetweenModModelBackgroundWorker.CancelAsync();
-            }
-            else
-                checkDetailedConflictBetweenModModelBackgroundWorker.RunWorkerAsync();
+            refreshButton.Enabled = false;
+            fileListView.Enabled = false;
+            checkConflictInModModelBackgroundWorker.RunWorkerAsync();
         }
+    }
 
-        private void checkDetailedConflictBetweenModModelBackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
+    private void checkConflictInModModelBackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
+    {
+        if (checkConflictInModModelBackgroundWorker.CancellationPending)
         {
-            if (checkDetailedConflictBetweenModModelBackgroundWorker.CancellationPending)
-            {
-                e.Cancel = true;
-                return;
-            }
-            _profileModel.CheckDetailedConflicts();
+            e.Cancel = true;
+            return;
         }
+        _profileModel.CheckPackageConflicts();
+    }
 
-        private void checkDetailedConflictBetweenModModelBackgroundWorker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+    private void checkConflictInModModelBackgroundWorker_RunWorkerCompleted(
+        object sender,
+        RunWorkerCompletedEventArgs e
+    )
+    {
+        if (checkConflictInModModelBackgroundWorker_restart)
         {
-            if (checkDetailedConflictBetweenModModelBackgroundWorker_restart)
+            checkConflictBetweenModModelBackgroundWorker_restart = false;
+            checkConflictBetweenModModelBackgroundWorker.RunWorkerAsync();
+        }
+        else
+        {
+            fileListView.Enabled = true;
+            fileListView.Refresh();
+
+            if (!checkConflictInModModelBackgroundWorker.IsBusy)
             {
-                checkDetailedConflictBetweenModModelBackgroundWorker_restart = false;
-                checkDetailedConflictBetweenModModelBackgroundWorker.RunWorkerAsync();
+                refreshButton.Enabled = true;
             }
-            else
-            {
-                Logger.Log("Finished detailed conflict checking between mods.");
-            }
+
+            Logger.Log("Finished conflict checking in mods.");
+        }
+    }
+
+    private void CheckDetailedConflictsBetweenModModels()
+    {
+        if (checkDetailedConflictBetweenModModelBackgroundWorker.IsBusy)
+        {
+            checkDetailedConflictBetweenModModelBackgroundWorker_restart = true;
+            checkDetailedConflictBetweenModModelBackgroundWorker.CancelAsync();
+        }
+        else
+        {
+            checkDetailedConflictBetweenModModelBackgroundWorker.RunWorkerAsync();
+        }
+    }
+
+    private void checkDetailedConflictBetweenModModelBackgroundWorker_DoWork(
+        object sender,
+        DoWorkEventArgs e
+    )
+    {
+        if (checkDetailedConflictBetweenModModelBackgroundWorker.CancellationPending)
+        {
+            e.Cancel = true;
+            return;
+        }
+        _profileModel.CheckDetailedConflicts();
+    }
+
+    private void checkDetailedConflictBetweenModModelBackgroundWorker_RunWorkerCompleted(
+        object sender,
+        RunWorkerCompletedEventArgs e
+    )
+    {
+        if (checkDetailedConflictBetweenModModelBackgroundWorker_restart)
+        {
+            checkDetailedConflictBetweenModModelBackgroundWorker_restart = false;
+            checkDetailedConflictBetweenModModelBackgroundWorker.RunWorkerAsync();
+        }
+        else
+        {
+            Logger.Log("Finished detailed conflict checking between mods.");
         }
     }
 }
